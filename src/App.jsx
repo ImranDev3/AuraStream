@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -11,17 +11,66 @@ localStorage.clear();
 
 // --- Mock Music Database ---
 const mockSongs = [
-  { id: 'yt_1', title: "Starboy", artist: "The Weeknd", cover: "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300&h=300&fit=crop", color: "#7000ff" },
-  { id: 'yt_2', title: "Stay", artist: "The Kid LAROI", cover: "https://images.unsplash.com/photo-1493225255756-d9584f8606e9?w=300&h=300&fit=crop", color: "#00f2ff" },
-  { id: 'yt_3', title: "Flowers", artist: "Miley Cyrus", cover: "https://images.unsplash.com/photo-1459749411177-042180ce673c?w=300&h=300&fit=crop", color: "#ff00c8" },
-  { id: 'yt_4', title: "Heat Waves", artist: "Glass Animals", cover: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&h=300&fit=crop", color: "#f59e0b" },
+  { id: 'yt_1', title: "Starboy", artist: "The Weeknd", cover: "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300&h=300&fit=crop", color: "#7000ff", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+  { id: 'yt_2', title: "Stay", artist: "The Kid LAROI", cover: "https://images.unsplash.com/photo-1493225255756-d9584f8606e9?w=300&h=300&fit=crop", color: "#00f2ff", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+  { id: 'yt_3', title: "Flowers", artist: "Miley Cyrus", cover: "https://images.unsplash.com/photo-1459749411177-042180ce673c?w=300&h=300&fit=crop", color: "#ff00c8", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
+  { id: 'yt_4', title: "Heat Waves", artist: "Glass Animals", cover: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&h=300&fit=crop", color: "#f59e0b", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" },
 ];
 
 const App = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTrack, setCurrentTrack] = useState(mockSongs[0]);
   const [volume, setVolume] = useState(80);
-  const [progress, setProgress] = useState(30);
+  const [progress, setProgress] = useState(0);
+  const audioRef = useRef(new Audio(mockSongs[0].url));
+
+  useEffect(() => {
+    if (isPlaying) {
+      audioRef.current.play().catch(err => console.log("Playback failed:", err));
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying]);
+
+  useEffect(() => {
+    audioRef.current.src = currentTrack.url;
+    if (isPlaying) {
+      audioRef.current.play().catch(err => console.log("Playback failed:", err));
+    }
+  }, [currentTrack]);
+
+  useEffect(() => {
+    audioRef.current.volume = volume / 100;
+  }, [volume]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    const updateProgress = () => {
+      const p = (audio.currentTime / audio.duration) * 100;
+      setProgress(p || 0);
+    };
+    audio.addEventListener('timeupdate', updateProgress);
+    audio.addEventListener('ended', () => setIsPlaying(false));
+    return () => {
+      audio.removeEventListener('timeupdate', updateProgress);
+      audio.removeEventListener('ended', () => setIsPlaying(false));
+    };
+  }, []);
+
+  const handleProgressChange = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const p = x / rect.width;
+    audioRef.current.currentTime = p * audioRef.current.duration;
+    setProgress(p * 100);
+  };
+
+  const handleVolumeChange = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const v = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    setVolume(v);
+  };
 
   return (
     <Router>
@@ -84,11 +133,11 @@ const App = () => {
               <Repeat size={18} color="var(--text-muted)" />
             </div>
             <div className="progress-container">
-              <span>1:45</span>
-              <div className="progress-bar" onClick={(e) => setProgress(e.nativeEvent.offsetX / e.target.clientWidth * 100)}>
+              <span>{Math.floor(audioRef.current.currentTime / 60)}:{Math.floor(audioRef.current.currentTime % 60).toString().padStart(2, '0')}</span>
+              <div className="progress-bar" onClick={handleProgressChange}>
                 <div className="progress-fill" style={{ width: `${progress}%` }}></div>
               </div>
-              <span>4:20</span>
+              <span>{Math.floor(audioRef.current.duration / 60 || 0)}:{Math.floor(audioRef.current.duration % 60 || 0).toString().padStart(2, '0')}</span>
             </div>
           </div>
 
@@ -96,7 +145,7 @@ const App = () => {
             <Mic2 size={18} color="var(--text-muted)" />
             <ListMusic size={18} color="var(--text-muted)" />
             <Volume2 size={20} color="var(--text-muted)" />
-            <div className="progress-bar" style={{ width: '100px' }}>
+            <div className="progress-bar" style={{ width: '100px' }} onClick={handleVolumeChange}>
               <div className="progress-fill" style={{ width: `${volume}%` }}></div>
             </div>
             <Maximize2 size={18} color="var(--text-muted)" />
